@@ -1,0 +1,69 @@
+{
+  "name": "dbml-documentation-md",
+  "displayName": "DBML documentation creator",
+  "description": "Create database documentation as markdown from DBML files",
+	"publisher": "EinWesen",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/EinWesen/vscode-dbml-documentation-md"
+	},  
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "dbml-documentation-md.showPreviewMD",
+        "title": "DBML: Show documentation (Markdownpreview)"
+      },
+      {
+        "command": "dbml-documentation-md.createMD",
+        "title": "DBML: Create documentation (Markdown)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "dbml-documentation-md.showPreviewMD",
+          "when": "editorLangId == dbml || resourceExtname == .dbml"
+        },
+        {
+          "command": "dbml-documentation-md.createMD",
+          "when": "editorLangId == dbml || resourceExtname == .dbml"
+        }
+      ]
+    }    
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@dbml/core": "^3.13.5-alpha.1",
+    "ts-markdown": "^1.3.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.98.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "eslint": "^9.25.1",
+    "esbuild": "^0.25.3",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.8.3"
+  }
+}
