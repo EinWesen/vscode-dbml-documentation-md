@@ -5,7 +5,7 @@ import { generateMarkdownDocumentationFromDBML } from './markdowngenerator';
 
 
 class VirtualDbmlMdDocumentationProvider implements vscode.TextDocumentContentProvider {
-	static urlscheme = 'dbml-documentation-md-virtual';
+	static readonly URLSCHEME = 'dbml-documentation-md-virtual';
 
 	static getContentFromUri = async function(uri: vscode.Uri): Promise<string> {
 		const openDoc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
@@ -29,7 +29,7 @@ class VirtualDbmlMdDocumentationProvider implements vscode.TextDocumentContentPr
 	createPreviewTextDocument(sourceDocument:vscode.TextDocument):Thenable<vscode.TextDocument> {
 		const filename = `${sourceDocument.fileName}-DBMLDoc.md`;
 		const fragment = `${encodeURIComponent(sourceDocument.uri.toString())}`;
-		const uri = vscode.Uri.parse(`${VirtualDbmlMdDocumentationProvider.urlscheme}:${filename}#${fragment}`);
+		const uri = vscode.Uri.parse(`${VirtualDbmlMdDocumentationProvider.URLSCHEME}:${filename}#${fragment}`);
 		return vscode.workspace.openTextDocument(uri);
 	}
 };
@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "dbml-documentation-md" is now active!');
 
 	const virtualDocumentProvider = new VirtualDbmlMdDocumentationProvider();
-    context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(VirtualDbmlMdDocumentationProvider.urlscheme, virtualDocumentProvider));
+    context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(VirtualDbmlMdDocumentationProvider.URLSCHEME, virtualDocumentProvider));
 
 	// These commands has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
