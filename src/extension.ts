@@ -22,7 +22,10 @@ class VirtualDbmlMdDocumentationProvider implements vscode.TextDocumentContentPr
 	async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
 		const real_uri = vscode.Uri.parse(decodeURIComponent(uri.fragment));
 		return VirtualDbmlMdDocumentationProvider.getContentFromUri(real_uri).then(text => {
-			return generateMarkdownDocumentationFromDBML(text);
+			return generateMarkdownDocumentationFromDBML(text).then(
+				(markdown_text) => Promise.resolve(markdown_text),
+				(error_text) => Promise.resolve(`Could not create preview due to underlying error: ${error_text}`)
+			);
 		});
 	}
 	
@@ -53,9 +56,15 @@ export function activate(context: vscode.ExtensionContext) {
 		console.log('Generating new markdown file for activeEditor');
 		const activeEditor = vscode.window.activeTextEditor;
 		if (activeEditor) {			
-			const markdown_text = generateMarkdownDocumentationFromDBML(activeEditor.document.getText());
-			const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: markdown_text });			
-			await vscode.window.showTextDocument(doc, { preview: false });		
+			generateMarkdownDocumentationFromDBML(activeEditor.document.getText()).then(
+				async (markdown_text) => {
+					const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: markdown_text });			
+					vscode.window.showTextDocument(doc, { preview: false });
+				},
+				async (error_text) => {
+					vscode.window.showErrorMessage(`Could not create document due to underlying error: ${error_text}`);
+				}
+			);
 		}
 	}));
 

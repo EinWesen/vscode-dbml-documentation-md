@@ -43,7 +43,6 @@ class MarkdownDocumentationGenerator {
 
     constructor(dbml_string:string) {
         // parse DBML to Database 
-        console.log(dbml_string);
         this.database = new Parser().parse(dbml_string, 'dbml');
     };
 
@@ -305,6 +304,17 @@ class MarkdownDocumentationGenerator {
 };
 
 
-export function generateMarkdownDocumentationFromDBML(source_dbml:string):string {
-    return new MarkdownDocumentationGenerator(source_dbml).createMarkdownText();
+export function generateMarkdownDocumentationFromDBML(source_dbml:string):Thenable<string> {
+    try {
+        return Promise.resolve(new MarkdownDocumentationGenerator(source_dbml).createMarkdownText());
+    } catch (e:any) {
+        try {
+            const errObj = e.diags[0];
+            console.log('in errorObj', errObj);
+            return Promise.reject(`@ ${errObj.location.start.line},${errObj.location.start.column} - ${errObj.location.end.line},${errObj.location.end.column} :\r\n${errObj.message}`);
+        } catch (e2:any) {
+            console.log('in error2', e2);
+            return Promise.reject(e.toString());
+        }
+    }
 }
