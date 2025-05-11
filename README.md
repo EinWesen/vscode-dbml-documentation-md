@@ -2,8 +2,10 @@
 While the DBML file format is quite readable already, it is not a nice looking documentation you would use in a wiki or something.
 This extension aims to remedy that by creating a markdown document that lists all table structures along with teh associated information, similiar lie a db tool would.  
 
-## Features
-- [ ] Generate markdown file from DBML
+## Features / TODO
+- [x] Generate markdown file from DBML
+    - [ ] Show references in a nicer way
+    - [ ] Show indices in a nicer way
 - [ ] Live preview of current file
 
 ## References
