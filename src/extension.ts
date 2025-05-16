@@ -29,12 +29,36 @@ class VirtualDbmlMdDocumentationProvider implements vscode.TextDocumentContentPr
 
 	async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
 		const real_uri = vscode.Uri.parse(decodeURIComponent(uri.fragment));
-		return VirtualDbmlMdDocumentationProvider.getContentFromUri(real_uri).then(text => {
-			return generateMarkdownDocumentationFromDBML(text).then(
-				(markdown_text) => Promise.resolve(markdown_text),
-				(error_text) => Promise.resolve(`Could not create preview due to underlying error: ${error_text}`)
-			);
-		});
+		
+    // Use vscode.window.withProgress to show the progress bar during the content generation
+    return vscode.window.withProgress({
+		  location: vscode.ProgressLocation.Notification,
+		  title: 'Generating DBML-documentation preview...',
+		  cancellable: false, // Progress is indeterminate, so we don't need it to be cancellable
+		},
+		async (progress) => {
+		  // Indeterminate progress bar (we update the progress report here)
+		  progress.report({ increment: 0 });  // Indeterminate starts with no progress
+		  
+		  try {
+			const source_content = await VirtualDbmlMdDocumentationProvider.getContentFromUri(real_uri);		
+			const markdownText = await generateMarkdownDocumentationFromDBML(source_content);
+			
+			// Step 3: Once content generation is done, resolve the promise with the Markdown
+			progress.report({ increment: 100, message: 'Preview ready!' }); // This marks the progress as completed
+			
+			return markdownText; // Return the final Markdown content to be displayed in the preview
+		  } catch (error) {
+			// Handle errors gracefully and update the progress bar with an error message
+			progress.report({ increment: 100, message: 'Error!' });
+			
+			vscode.window.showErrorMessage('Could not generate DBML documentation. See preview for details.');
+
+			// Provide an error message in the preview
+			return `Could not create preview due to underlying error: ${error}`;
+		  }
+		}
+	  );			
 	}
 	
 	createPreviewTextDocument(sourceDocument:vscode.TextDocument):Thenable<vscode.TextDocument> {
@@ -118,7 +142,6 @@ class VirtualDbmlMdDocumentationProvider implements vscode.TextDocumentContentPr
 
 };
 
-
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -137,16 +160,34 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('dbml-documentation-md.createMD', async () => {
 		console.log('Generating new markdown file for activeEditor');
 		const activeEditor = vscode.window.activeTextEditor;
-		if (activeEditor) {			
-			generateMarkdownDocumentationFromDBML(activeEditor.document.getText()).then(
-				async (markdown_text) => {
-					const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: markdown_text });			
-					vscode.window.showTextDocument(doc, { preview: false });					
-				},
-				async (error_text) => {
-					vscode.window.showErrorMessage(`Could not create document due to underlying error: ${error_text}`);
-				}
-			);
+		if (activeEditor) {	
+			vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				title: 'Generating DBML-documentation preview...',
+				cancellable: false, // Progress is indeterminate, so we don't need it to be cancellable
+			  },
+			  async (progress) => {
+				// Indeterminate progress bar (we update the progress report here)
+				progress.report({ increment: 0 });  // Indeterminate starts with no progress
+
+				generateMarkdownDocumentationFromDBML(activeEditor.document.getText()).then(
+					async (markdown_text) => {
+						
+						progress.report({ increment: 99, message: 'Content ready!' }); 
+						const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: markdown_text });			
+						vscode.window.showTextDocument(doc, { preview: false });					
+
+						progress.report({ increment: 100, message: 'DBML documentation created!' }); // This marks the progress as completed
+					},
+					async (error_text) => {
+						// Handle errors gracefully and update the progress bar with an error message
+						progress.report({ increment: 100, message: 'Error!' }); //vanished immediately any, no need to be detailed
+						vscode.window.showErrorMessage(`Could not create document due to underlying error: ${error_text}`);
+					}
+				);
+
+			  }
+			);							
 		}
 	}));
 
