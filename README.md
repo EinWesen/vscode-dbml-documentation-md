@@ -6,7 +6,7 @@ This extension aims to remedy that by creating a markdown document that lists al
 - [x] Generate markdown file from DBML
     - [ ] Show references in a nicer way
     - [ ] Show indices in a nicer way
-- [ ] Live preview of current file
+- [x] "Live" preview of current file (on save)
 
 ## References
 

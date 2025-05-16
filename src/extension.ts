@@ -4,7 +4,8 @@ import * as vscode from 'vscode';
 import { generateMarkdownDocumentationFromDBML } from './markdowngenerator';
 
 
-class VirtualDbmlMdDocumentationProvider implements vscode.TextDocumentContentProvider {
+class VirtualDbmlMdDocumentationProvider implements vscode.TextDocumentContentProvider, vscode.Disposable {
+
 	static readonly URLSCHEME = 'dbml-documentation-md-virtual';
 
 	static getContentFromUri = async function(uri: vscode.Uri): Promise<string> {
@@ -16,9 +17,16 @@ class VirtualDbmlMdDocumentationProvider implements vscode.TextDocumentContentPr
 			return vscode.workspace.openTextDocument(uri).then(doc => doc.getText());
 		}
 	};	
-
-	onDidChange?: vscode.Event<vscode.Uri> | undefined;
 	
+	private _changeEmitter = new vscode.EventEmitter<vscode.Uri>();
+	private onDidChangeTabsListener?: vscode.Disposable | undefined;
+	private onDidChangeTextDocumentListener?: vscode.Disposable | undefined;
+	private onDidCloseTextDocumentListener?: vscode.Disposable | undefined;
+	private currentSourceUriPath?: string | undefined;
+	private currentPreviewUri?: vscode.Uri | undefined;
+	
+	onDidChange?: vscode.Event<vscode.Uri> = this._changeEmitter.event;
+
 	async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
 		const real_uri = vscode.Uri.parse(decodeURIComponent(uri.fragment));
 		return VirtualDbmlMdDocumentationProvider.getContentFromUri(real_uri).then(text => {
@@ -35,6 +43,79 @@ class VirtualDbmlMdDocumentationProvider implements vscode.TextDocumentContentPr
 		const uri = vscode.Uri.parse(`${VirtualDbmlMdDocumentationProvider.URLSCHEME}:${filename}#${fragment}`);
 		return vscode.workspace.openTextDocument(uri);
 	}
+
+	disposeListeners() {
+		this.onDidChangeTabsListener?.dispose();
+		this.onDidChangeTabsListener = undefined;
+		this.onDidChangeTextDocumentListener?.dispose();
+		this.onDidChangeTextDocumentListener = undefined;
+		this.onDidCloseTextDocumentListener?.dispose();
+		this.onDidCloseTextDocumentListener = undefined;
+		this.currentSourceUriPath = undefined;		
+	}	
+	
+	onDidOpenPreviewTextDocument(doc: vscode.TextDocument) {
+		this.currentSourceUriPath = decodeURIComponent(doc.uri.fragment);
+		this.currentPreviewUri = doc.uri;
+
+		if (!this.onDidChangeTabsListener) {
+			console.log('Registering eventlisteners due to open preview');
+			
+			const self = this;
+			this.onDidChangeTabsListener = vscode.window.tabGroups.onDidChangeTabs((event) => {								
+
+				const wasClosed = event.closed.some(tab => {
+					// Some tabs may have non-text inputs (diffs, terminals, etc.)
+					if (tab.input instanceof vscode.TabInputText) {
+						// Since there can be only one markdown-preview it seems, its enough to check for the scheme
+						return tab.input.uri.scheme === VirtualDbmlMdDocumentationProvider.URLSCHEME;
+					}
+					return false;
+				});
+			
+				if (wasClosed) {
+					self.onDidClosePreviewWindow();
+				}
+			});	
+			
+			this.onDidCloseTextDocumentListener = vscode.workspace.onDidCloseTextDocument(doc => {
+				if (self.currentSourceUriPath !== undefined && doc.uri.toString() === self.currentSourceUriPath) {
+					self.currentSourceUriPath = undefined;					
+				}
+			});		
+
+			/* For now, the only react to saves as change, that way we need no debounce
+			 * and real live tracking is not as usefuil anyway 
+			 */
+			this.onDidChangeTextDocumentListener = vscode.workspace.onDidSaveTextDocument(doc => {						
+				if (self.currentSourceUriPath !== undefined && self.currentSourceUriPath === doc.uri.toString()) {
+					self.onDidChangeSourceDocument({
+						document:doc, contentChanges:[], reason:undefined
+					});
+				}
+			});				
+			
+		}
+		
+	}
+	
+	onDidClosePreviewWindow() {
+		console.log('Disposing eventlisteners due to closed preview');
+		this.disposeListeners();
+	}
+
+	onDidChangeSourceDocument(event: vscode.TextDocumentChangeEvent) {
+		// Should always be the case, when we reach here
+		if (this.currentPreviewUri !== undefined)  {
+			console.log(`Source document changed: ${event.document.uri.toString()}`);		
+			this._changeEmitter.fire(this.currentPreviewUri);
+		}
+	}
+	
+	dispose() {
+		this.disposeListeners();
+	}	
+
 };
 
 
@@ -47,6 +128,7 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "dbml-documentation-md" is now active!');
 
 	const virtualDocumentProvider = new VirtualDbmlMdDocumentationProvider();
+	context.subscriptions.push(virtualDocumentProvider); // Notify of deactivation that way
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(VirtualDbmlMdDocumentationProvider.URLSCHEME, virtualDocumentProvider));
 
 	// These commands has been defined in the package.json file
@@ -59,7 +141,7 @@ export function activate(context: vscode.ExtensionContext) {
 			generateMarkdownDocumentationFromDBML(activeEditor.document.getText()).then(
 				async (markdown_text) => {
 					const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: markdown_text });			
-					vscode.window.showTextDocument(doc, { preview: false });
+					vscode.window.showTextDocument(doc, { preview: false });					
 				},
 				async (error_text) => {
 					vscode.window.showErrorMessage(`Could not create document due to underlying error: ${error_text}`);
@@ -76,11 +158,17 @@ export function activate(context: vscode.ExtensionContext) {
 			let doc = await virtualDocumentProvider.createPreviewTextDocument(activeEditor.document);
 			
 			// Show the markdown preview of the virtual doc
-			await vscode.commands.executeCommand('markdown.showPreview', doc.uri);				
+			await vscode.commands.executeCommand('markdown.showPreview', doc.uri);
+			
+			// Seems the window can still not be open at this point, give it a bit of time
+			setTimeout(() => {
+				virtualDocumentProvider.onDidOpenPreviewTextDocument(doc);
+			}, 1000); 
 		}
-	}));
-
+	}));		
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+
+}
